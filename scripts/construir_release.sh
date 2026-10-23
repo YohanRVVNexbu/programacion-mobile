@@ -30,14 +30,15 @@ AAB_ORIGEN="app/build/outputs/bundle/${AMBIENTE}Release/app-${AMBIENTE}-release.
 [ -f "$APK_ORIGEN" ] && [ -f "$AAB_ORIGEN" ] || { echo "No se generaron los artefactos."; exit 1; }
 
 # La versión se lee del propio APK compilado, no de los archivos de configuración.
-INFO="$("$BT/aapt2" dump badging "$APK_ORIGEN" | head -1)"
-PAQUETE="$(sed -n "s/.*name='\([^']*\)'.*/\1/p" <<< "$INFO")"
+INFO="$("$BT/aapt2" dump badging "$APK_ORIGEN" | sed -n '1p')"
+PAQUETE="$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<< "$INFO")"
 CODIGO="$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<< "$INFO")"
 NOMBRE="$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<< "$INFO")"
 
 DESTINO=entrega-release
 mkdir -p "$DESTINO"
-BASE="Recordatorios-${NOMBRE}-${AMBIENTE}-release"
+# En dev el versionName ya termina en "-dev", así que el nombre del archivo identifica la variante en ambos casos.
+BASE="Recordatorios-${NOMBRE}-release"
 cp "$APK_ORIGEN" "$DESTINO/$BASE.apk"
 cp "$AAB_ORIGEN" "$DESTINO/$BASE.aab"
 
