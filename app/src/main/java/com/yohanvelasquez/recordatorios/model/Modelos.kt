@@ -3,13 +3,27 @@ package com.yohanvelasquez.recordatorios.model
 import java.time.LocalDateTime
 
 /** Categoría de un recordatorio. Al ser data class, dos categorías con el mismo nombre son iguales (útil en un Set). */
-data class Categoria(val nombre: String)
+data class Categoria(val nombre: String) {
+    companion object {
+        val Trabajo = Categoria("Trabajo")
+        val Estudio = Categoria("Estudio")
+        val Salud = Categoria("Salud")
+        val Hogar = Categoria("Hogar")
+
+        /** Únicas categorías válidas en la aplicación. */
+        val disponibles: List<Categoria> = listOf(Trabajo, Estudio, Salud, Hogar)
+    }
+}
 
 /** Prioridades posibles: jerarquía cerrada, no se pueden crear valores fuera de estas tres. */
 sealed class Prioridad(val etiqueta: String, val peso: Int) {
     data object Alta : Prioridad("Alta", 3)
     data object Media : Prioridad("Media", 2)
     data object Baja : Prioridad("Baja", 1)
+
+    companion object {
+        val todas: List<Prioridad> get() = listOf(Alta, Media, Baja)
+    }
 }
 
 /** Estado de un recordatorio. Completado guarda cuándo se terminó. */
@@ -33,58 +47,46 @@ data class Recordatorio(
     init {
         // Última barrera: nunca puede existir un recordatorio en estado inválido.
         require(id > 0) { "El id debe ser positivo" }
-        require(titulo.isNotBlank()) { "El título es obligatorio" }
-        require(titulo.length <= MAX_TITULO) { "El título no puede superar $MAX_TITULO caracteres" }
+        require(titulo.trim().length >= TITULO_MIN) { "El título debe tener al menos $TITULO_MIN caracteres" }
+        require(titulo.length <= TITULO_MAX) { "El título no puede superar $TITULO_MAX caracteres" }
+        require((descripcion?.length ?: 0) <= DESCRIPCION_MAX) { "La descripción no puede superar $DESCRIPCION_MAX caracteres" }
     }
 
     companion object {
-        const val MAX_TITULO = 60
+        const val TITULO_MIN = 4
+        const val TITULO_MAX = 60
+        const val DESCRIPCION_MAX = 200
     }
 }
 
-/** Resultado de intentar crear un recordatorio a partir de datos de entrada. */
-sealed interface ResultadoValidacion {
-    data class Valido(val recordatorio: Recordatorio) : ResultadoValidacion
-    data class Invalido(val errores: List<String>) : ResultadoValidacion
+/** Errores de cada campo del formulario; null significa que el campo es válido. */
+data class ErroresFormulario(
+    val titulo: String? = null,
+    val descripcion: String? = null,
+    val categoria: String? = null,
+    val prioridad: String? = null,
+) {
+    val esValido: Boolean get() = titulo == null && descripcion == null && categoria == null && prioridad == null
 }
 
-/** Estados de la pantalla principal. */
-sealed interface EstadoUi {
-    data object Cargando : EstadoUi
-    data object Vacio : EstadoUi
-    data class Exito(val recordatorios: List<Recordatorio>) : EstadoUi
-    data class Error(val mensaje: String) : EstadoUi
-}
-
-/**
- * Valida los datos antes de construir el recordatorio y devuelve todos los errores juntos
- * en lugar de lanzar una excepción.
- */
-fun crearRecordatorio(
-    id: Int,
+/** Reglas de validación del formulario de creación. */
+fun validarFormulario(
     titulo: String,
-    categoria: Categoria,
-    prioridad: Prioridad,
-    estado: EstadoRecordatorio = EstadoRecordatorio.Pendiente,
-    descripcion: String? = null,
-    fechaLimite: LocalDateTime? = null,
-    ubicacion: String? = null,
-    ahora: LocalDateTime = LocalDateTime.now(),
-): ResultadoValidacion {
-    val errores = buildList {
-        if (id <= 0) add("El id debe ser positivo")
-        if (titulo.isBlank()) add("El título es obligatorio")
-        if (titulo.length > Recordatorio.MAX_TITULO) add("El título no puede superar ${Recordatorio.MAX_TITULO} caracteres")
-        if (categoria.nombre.isBlank()) add("La categoría es obligatoria")
-        if (fechaLimite != null && estado !is EstadoRecordatorio.Completado && fechaLimite.isBefore(ahora)) {
-            add("La fecha límite de un recordatorio pendiente no puede estar en el pasado")
-        }
-    }
-    return if (errores.isEmpty()) {
-        ResultadoValidacion.Valido(
-            Recordatorio(id, titulo.trim(), categoria, prioridad, estado, descripcion?.takeIf { it.isNotBlank() }, fechaLimite, ubicacion?.takeIf { it.isNotBlank() })
-        )
-    } else {
-        ResultadoValidacion.Invalido(errores)
-    }
+    descripcion: String,
+    categoria: Categoria?,
+    prioridad: Prioridad?,
+): ErroresFormulario {
+    val tituloLimpio = titulo.trim()
+    return ErroresFormulario(
+        titulo = when {
+            tituloLimpio.length < Recordatorio.TITULO_MIN -> "El título debe tener al menos ${Recordatorio.TITULO_MIN} caracteres"
+            tituloLimpio.length > Recordatorio.TITULO_MAX -> "El título no puede superar ${Recordatorio.TITULO_MAX} caracteres"
+            else -> null
+        },
+        descripcion = if (descripcion.length > Recordatorio.DESCRIPCION_MAX) {
+            "La descripción no puede superar ${Recordatorio.DESCRIPCION_MAX} caracteres"
+        } else null,
+        categoria = if (categoria !in Categoria.disponibles) "Selecciona una categoría de la lista" else null,
+        prioridad = if (prioridad == null) "Selecciona una prioridad" else null,
+    )
 }
