@@ -1,0 +1,4 @@
+Copia aquí el archivo que descargas de la consola de Firebase (Configuración del proyecto > Tus apps > Android,
+paquete com.yohanvelasquez.recordatorios) y guárdalo como app/src/prod/google-services.json.
+Ese archivo no se sube al repositorio. La variante "dev" no lo necesita: usa app/src/dev/google-services.json,
+que es un archivo de demostración sin datos reales y solo funciona con el emulador de Firebase.

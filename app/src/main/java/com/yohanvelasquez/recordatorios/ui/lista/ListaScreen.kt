@@ -39,6 +39,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.yohanvelasquez.recordatorios.BuildConfig
 import com.yohanvelasquez.recordatorios.data.DatosSimulados
 import com.yohanvelasquez.recordatorios.data.remote.ModoSimulacion
 import com.yohanvelasquez.recordatorios.data.sync.EstadoSincronizacion
@@ -95,7 +96,7 @@ fun ListaScreen(
                 actions = {
                     IconButton(onClick = onSincronizar) { Icon(Icons.Filled.Refresh, contentDescription = "Sincronizar ahora") }
                     IconButton(onClick = onPreferencias) { Icon(Icons.Filled.Settings, contentDescription = "Preferencias") }
-                    MenuSimulacion(onSimulacionSeleccionada)
+                    if (BuildConfig.PERMITE_SIMULACION) MenuSimulacion(onSimulacionSeleccionada)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
             )

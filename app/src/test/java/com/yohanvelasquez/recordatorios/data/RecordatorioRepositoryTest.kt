@@ -10,6 +10,7 @@ import com.yohanvelasquez.recordatorios.model.EstadoRecordatorio
 import com.yohanvelasquez.recordatorios.model.EstadoSync
 import com.yohanvelasquez.recordatorios.model.FiltroEstado
 import com.yohanvelasquez.recordatorios.model.Prioridad
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -26,14 +27,20 @@ import java.io.File
 class RecordatorioRepositoryTest {
     @get:Rule val carpeta = TemporaryFolder()
 
-    private class Entorno(val dao: DaoEnMemoria, val servidor: ServidorFalso, val repo: RecordatorioRepositoryLocalFirst, val prefs: PreferenciasRepository)
+    private class Entorno(
+        val dao: DaoEnMemoria, val servidor: ServidorFalso, val repo: RecordatorioRepositoryLocalFirst,
+        val prefs: PreferenciasRepository, val uid: MutableStateFlow<String?>,
+    )
 
     private fun TestScope.entorno(): Entorno {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
         val prefs = PreferenciasRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(carpeta.root, "prefs.preferences_pb") })
+        val uid = MutableStateFlow<String?>(UID)
         var tic = 1_000L
-        val repo = RecordatorioRepositoryLocalFirst(dao, prefs, Sincronizador(dao, servidor, backgroundScope), reloj = { tic++ }, nuevoClientId = { "c${tic}" })
-        return Entorno(dao, servidor, repo, prefs)
+        val repo = RecordatorioRepositoryLocalFirst(
+            dao, prefs, Sincronizador(dao, servidor, { uid.value }, backgroundScope), uid, reloj = { tic++ }, nuevoClientId = { "c${tic}" },
+        )
+        return Entorno(dao, servidor, repo, prefs, uid)
     }
 
     @Test
@@ -51,7 +58,7 @@ class RecordatorioRepositoryTest {
     fun `actualizar y cambiar completado dejan el registro pendiente`() = runTest(UnconfinedTestDispatcher()) {
         val e = entorno(); e.servidor.modo = Modo.SIN_CONEXION
         val id = e.repo.crear("Comprar pan", null, Categoria.Hogar, Prioridad.Baja)
-        e.dao.marcarTrasEnvio(id, "9", e.dao.obtenerPorId(id)!!.actualizadoEn) // simula que ya estaba sincronizado
+        e.dao.marcarTrasEnvio(id, "9", e.dao.obtenerPorId(UID, id)!!.actualizadoEn) // simula que ya estaba sincronizado
         assertEquals(EstadoSync.SINCRONIZADO, e.repo.obtenerRecordatorio(id)!!.sincronizacion)
 
         e.repo.actualizar(id, "Comprar pan integral", "Sin gluten", Categoria.Hogar, Prioridad.Media)

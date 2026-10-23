@@ -1,0 +1,14 @@
+{
+  "name": "recordatorios-firebase",
+  "private": true,
+  "description": "Reglas de seguridad de Firestore y sus pruebas (se ejecutan contra el Emulator Suite).",
+  "scripts": {
+    "emuladores": "firebase emulators:start --only auth,firestore --project demo-recordatorios",
+    "test:reglas": "firebase emulators:exec --only firestore --project demo-recordatorios \"node --test tests/\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.0.0",
+    "firebase-tools": "^13.35.1"
+  }
+}

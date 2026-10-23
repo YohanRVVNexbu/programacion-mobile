@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// Cada persona solo puede leer y escribir sus propios recordatorios:
+//   users/{uid}/reminders/{reminderId}  ->  solo si request.auth.uid == uid.
+// Todo lo demás está denegado por defecto. Las reglas validan también la forma de los datos, así que
+// un cliente modificado no puede guardar valores inválidos aunque tenga sesión.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function esDueno(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function opcionalEntero(d, campo) {
+      return !(campo in d) || d[campo] == null || d[campo] is int;
+    }
+
+    function recordatorioValido(d) {
+      return d.keys().hasOnly(['titulo', 'descripcion', 'categoria', 'prioridad', 'estado',
+                               'completadoEn', 'fechaLimite', 'ubicacion', 'creadoEn', 'actualizadoEn'])
+        && d.keys().hasAll(['titulo', 'categoria', 'prioridad', 'estado', 'creadoEn', 'actualizadoEn'])
+        && d.titulo is string && d.titulo.trim().size() >= 4 && d.titulo.size() <= 60
+        && (!('descripcion' in d) || d.descripcion == null || (d.descripcion is string && d.descripcion.size() <= 200))
+        && (!('ubicacion' in d) || d.ubicacion == null || d.ubicacion is string)
+        && d.categoria in ['Trabajo', 'Estudio', 'Salud', 'Hogar']
+        && d.prioridad in ['ALTA', 'MEDIA', 'BAJA']
+        && d.estado in ['PENDIENTE', 'EN_PROGRESO', 'COMPLETADO']
+        && d.creadoEn is int && d.actualizadoEn is int
+        && opcionalEntero(d, 'completadoEn') && opcionalEntero(d, 'fechaLimite');
+    }
+
+    match /users/{uid}/reminders/{reminderId} {
+      allow read: if esDueno(uid);
+      allow create, update: if esDueno(uid) && recordatorioValido(request.resource.data);
+      allow delete: if esDueno(uid);
+    }
+  }
+}

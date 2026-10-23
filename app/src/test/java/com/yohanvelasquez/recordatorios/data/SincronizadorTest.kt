@@ -19,7 +19,7 @@ class SincronizadorTest {
     @Test
     fun `lo creado sin conexion queda pendiente y al volver la red se envia una sola vez`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
         dao.insertar(entidad("a"))
 
         servidor.modo = Modo.SIN_CONEXION
@@ -40,7 +40,7 @@ class SincronizadorTest {
     @Test
     fun `varias sincronizaciones simultaneas no duplican`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
         dao.insertar(entidad("a")); dao.insertar(entidad("b", "Llamar al banco"))
 
         List(6) { async { sync.sincronizar() } }.awaitAll()
@@ -52,7 +52,7 @@ class SincronizadorTest {
     @Test
     fun `muchas solicitudes seguidas se funden en pocas sincronizaciones`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
         dao.insertar(entidad("a"))
         repeat(20) { sync.solicitar() }
         runCurrent() // ejecuta el consumidor que corre en backgroundScope
@@ -63,7 +63,7 @@ class SincronizadorTest {
     @Test
     fun `si se pierde la respuesta de la creacion el reintento no crea otro registro`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
         dao.insertar(entidad("a"))
 
         servidor.modo = Modo.PIERDE_RESPUESTA_AL_CREAR // el servidor crea pero el cliente recibe un timeout
@@ -82,7 +82,7 @@ class SincronizadorTest {
     @Test
     fun `si el usuario edita mientras se envia el registro sigue pendiente y se vuelve a enviar`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
         dao.insertar(entidad("a"))
         servidor.alCrear = {
             val actual = dao.filas.value.single()
@@ -103,7 +103,7 @@ class SincronizadorTest {
     @Test
     fun `un rechazo 400 marca error solo en ese registro y no frena a los demas`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
         dao.insertar(entidad("a"))
 
         servidor.modo = Modo.RECHAZA_400
@@ -113,7 +113,7 @@ class SincronizadorTest {
         assertTrue(fila.errorSync!!.contains("400"))
 
         servidor.modo = Modo.OK
-        dao.reintentarFallidos()
+        dao.reintentarFallidos(UID)
         sync.sincronizar()
         assertEquals(EstadoSync.SINCRONIZADO, dao.filas.value.single().syncEstado)
     }
@@ -121,7 +121,7 @@ class SincronizadorTest {
     @Test
     fun `error 500 y timeout son recuperables y conservan los datos locales`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
         dao.insertar(entidad("a"))
         for (modo in listOf(Modo.ERROR_500, Modo.TIMEOUT)) {
             servidor.modo = modo
@@ -135,7 +135,7 @@ class SincronizadorTest {
     @Test
     fun `eliminar un registro confirmado borra tambien en el servicio y uno nunca enviado se borra sin red`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
         val idA = dao.insertar(entidad("a")).toInt()
         sync.sincronizar()
         assertEquals(1, servidor.registros.size)
@@ -159,7 +159,7 @@ class SincronizadorTest {
     @Test
     fun `al traer cambios no duplica, respeta lo pendiente, borra lo eliminado y descarta datos invalidos`() = runTest {
         val dao = DaoEnMemoria(); val servidor = ServidorFalso()
-        val sync = Sincronizador(dao, servidor, backgroundScope)
+        val sync = Sincronizador(dao, servidor, { UID }, backgroundScope)
 
         servidor.sembrar("x", "Registro remoto")
         servidor.sembrar("malo", titulo = "ab")                 // título demasiado corto

@@ -56,9 +56,15 @@ fun RecordatorioEntity.aDominio(): Recordatorio = Recordatorio(
 
 // ---------- Dominio -> Entity ----------
 
-fun Recordatorio.aEntidad(clientId: String, remoteId: String? = null, actualizadoEn: Long = System.currentTimeMillis()): RecordatorioEntity =
+fun Recordatorio.aEntidad(
+    ownerUid: String,
+    clientId: String,
+    remoteId: String? = null,
+    actualizadoEn: Long = System.currentTimeMillis(),
+): RecordatorioEntity =
     RecordatorioEntity(
         id = id,
+        ownerUid = ownerUid,
         clientId = clientId,
         remoteId = remoteId,
         titulo = titulo,
@@ -94,6 +100,7 @@ fun RecordatorioEntity.aDto(): RecordatorioDto = RecordatorioDto(
     completadoEn = completadoEn,
     fechaLimite = fechaLimite,
     ubicacion = ubicacion,
+    creadoEn = creadoEn,
     actualizadoEn = actualizadoEn,
 )
 
@@ -102,7 +109,7 @@ fun RecordatorioEntity.aDto(): RecordatorioDto = RecordatorioDto(
  * Devuelve null si los datos no son válidos (así nunca llegan a la base).
  * [local] es la fila existente, si la hay: se conservan su id, su fecha de creación y su clientId.
  */
-fun RecordatorioDto.aEntidad(local: RecordatorioEntity?, ahora: Long = System.currentTimeMillis()): RecordatorioEntity? {
+fun RecordatorioDto.aEntidad(ownerUid: String, local: RecordatorioEntity?, ahora: Long = System.currentTimeMillis()): RecordatorioEntity? {
     val remoto = id ?: return null
     if (clientId.isBlank()) return null
     if (titulo.trim().length < Recordatorio.TITULO_MIN || titulo.length > Recordatorio.TITULO_MAX) return null
@@ -112,6 +119,7 @@ fun RecordatorioDto.aEntidad(local: RecordatorioEntity?, ahora: Long = System.cu
     if (estado !in setOf(RecordatorioEntity.ESTADO_PENDIENTE, RecordatorioEntity.ESTADO_EN_PROGRESO, RecordatorioEntity.ESTADO_COMPLETADO)) return null
     return RecordatorioEntity(
         id = local?.id ?: 0,
+        ownerUid = ownerUid,
         clientId = local?.clientId ?: clientId,
         remoteId = remoto,
         titulo = titulo.trim(),
@@ -122,7 +130,7 @@ fun RecordatorioDto.aEntidad(local: RecordatorioEntity?, ahora: Long = System.cu
         completadoEn = completadoEn,
         fechaLimite = fechaLimite,
         ubicacion = ubicacion,
-        creadoEn = local?.creadoEn ?: ahora,
+        creadoEn = local?.creadoEn ?: creadoEn.takeIf { it > 0 } ?: ahora,
         actualizadoEn = actualizadoEn.takeIf { it > 0 } ?: ahora,
         syncEstado = EstadoSync.SINCRONIZADO,
         errorSync = null,

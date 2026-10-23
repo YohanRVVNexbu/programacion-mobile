@@ -9,13 +9,16 @@ import com.yohanvelasquez.recordatorios.model.EstadoSync
  * Esquema de Room. Es independiente del modelo de dominio y del DTO del servicio.
  *
  * - [id]: identificador estable local (el que viaja en la navegación).
- * - [clientId]: UUID generado al crear; el servicio lo usa para no duplicar si la operación se reintenta.
- * - [remoteId]: identificador asignado por el servicio; null mientras no se confirmó la creación.
+ * - [ownerUid]: uid de la cuenta dueña del registro. Todas las consultas filtran por él, así una cuenta nunca ve
+ *   filas de otra aunque comparta el dispositivo.
+ * - [clientId]: UUID generado al crear; es también el id del documento en Firestore, así un reintento no duplica.
+ * - [remoteId]: id del documento remoto; null mientras no se confirmó la creación.
  * - [eliminado]: borrado lógico hasta que el servicio confirme el borrado.
  */
-@Entity(tableName = "recordatorios", indices = [Index(value = ["clientId"], unique = true)])
+@Entity(tableName = "recordatorios", indices = [Index(value = ["ownerUid", "clientId"], unique = true)])
 data class RecordatorioEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val ownerUid: String,
     val clientId: String,
     val remoteId: String? = null,
     val titulo: String,

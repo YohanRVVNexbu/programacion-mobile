@@ -15,15 +15,18 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +37,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.yohanvelasquez.recordatorios.BuildConfig
 import com.yohanvelasquez.recordatorios.data.preferencias.OrdenLista
 import com.yohanvelasquez.recordatorios.data.preferencias.Preferencias
 import com.yohanvelasquez.recordatorios.data.preferencias.TemaApp
@@ -44,12 +48,15 @@ fun PreferenciasRoute(
     onVolver: () -> Unit,
     viewModel: PreferenciasViewModel = viewModel(factory = PreferenciasViewModel.Factory),
 ) {
-    val preferencias by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     PreferenciasScreen(
-        preferencias = preferencias,
+        uiState = uiState,
         onTemaChange = viewModel::onTemaChange,
         onMostrarCompletadosChange = viewModel::onMostrarCompletadosChange,
         onOrdenChange = viewModel::onOrdenChange,
+        onCerrarSesion = viewModel::onCerrarSesion,
+        onCancelarCierre = viewModel::onCancelarCierre,
+        onConfirmarCierre = viewModel::onConfirmarCierre,
         onVolver = onVolver,
     )
 }
@@ -57,12 +64,16 @@ fun PreferenciasRoute(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreferenciasScreen(
-    preferencias: Preferencias,
+    uiState: PreferenciasUiState,
     onTemaChange: (TemaApp) -> Unit,
     onMostrarCompletadosChange: (Boolean) -> Unit,
     onOrdenChange: (OrdenLista) -> Unit,
+    onCerrarSesion: () -> Unit,
+    onCancelarCierre: () -> Unit,
+    onConfirmarCierre: () -> Unit,
     onVolver: () -> Unit,
 ) {
+    val preferencias = uiState.preferencias
     Scaffold(
         topBar = {
             TopAppBar(
@@ -102,8 +113,40 @@ fun PreferenciasScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+                Text("Cuenta", style = MaterialTheme.typography.titleMedium)
+                Text(uiState.correo ?: "Sin sesión", style = MaterialTheme.typography.bodyLarge)
+                OutlinedButton(onClick = onCerrarSesion, modifier = Modifier.fillMaxWidth()) { Text("Cerrar sesión") }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+                Text("Acerca de", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Versión ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\nVariante: ${BuildConfig.FLAVOR} · ${BuildConfig.BUILD_TYPE}\nCódigo: ${BuildConfig.GIT_COMMIT}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
         }
+    }
+
+    if (uiState.confirmandoCierre) {
+        AlertDialog(
+            onDismissRequest = onCancelarCierre,
+            title = { Text("¿Cerrar sesión?") },
+            text = {
+                Text(
+                    if (uiState.sinSincronizar > 0) {
+                        "Tienes ${uiState.sinSincronizar} cambio(s) sin sincronizar que se perderán. Se borrarán los datos de esta " +
+                            "cuenta de este dispositivo. Cancela y espera a que se sincronicen para no perderlos."
+                    } else {
+                        "Se borrarán los datos de esta cuenta de este dispositivo. Tus recordatorios siguen guardados en tu cuenta " +
+                            "y volverán al iniciar sesión."
+                    },
+                )
+            },
+            confirmButton = { TextButton(onClick = onConfirmarCierre) { Text("Cerrar sesión") } },
+            dismissButton = { TextButton(onClick = onCancelarCierre) { Text("Cancelar") } },
+        )
     }
 }
 
@@ -129,5 +172,5 @@ private fun <T> OpcionesRadio(opciones: List<T>, seleccionada: T, onSeleccion: (
 @Preview(showBackground = true)
 @Composable
 private fun PreferenciasScreenPreview() {
-    RecordatoriosTheme { PreferenciasScreen(Preferencias(), {}, {}, {}, {}) }
+    RecordatoriosTheme { PreferenciasScreen(PreferenciasUiState(correo = "ana@correo.com"), {}, {}, {}, {}, {}, {}, {}) }
 }

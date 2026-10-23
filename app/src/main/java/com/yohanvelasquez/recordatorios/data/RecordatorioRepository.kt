@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Lo que la app necesita sobre los recordatorios. Los ViewModels solo conocen esta interfaz:
- * no saben si los datos vienen de Room, del servicio o de ambos.
+ * Lo que la app necesita sobre los recordatorios de la cuenta activa. Los ViewModels solo conocen esta interfaz:
+ * no saben si los datos vienen de Room, de Firestore o de ambos.
  */
 interface RecordatorioRepository {
     fun observarRecordatorios(filtro: FiltroEstado = FiltroEstado.TODOS): Flow<ListadoRecordatorios>
@@ -26,4 +26,16 @@ interface RecordatorioRepository {
     val estadoSincronizacion: StateFlow<EstadoSincronizacion>
     fun solicitarSincronizacion()
     suspend fun reintentarFallidos()
+
+    /** Cantidad de cambios de la cuenta activa que el servicio todavía no confirmó. */
+    fun observarSinSincronizar(): Flow<Int>
+
+    /** Borra del dispositivo todo lo de la cuenta activa. Se usa al cerrar sesión. */
+    suspend fun limpiarDatosLocales()
+
+    /** Borra del dispositivo todo lo de una cuenta concreta (por ejemplo, la que acaba de dejar de tener sesión). */
+    suspend fun limpiarDatosDe(uid: String)
+
+    /** Borra los registros locales que no pertenecen a ninguna cuenta (datos de versiones anteriores). */
+    suspend fun descartarDatosSinCuenta()
 }

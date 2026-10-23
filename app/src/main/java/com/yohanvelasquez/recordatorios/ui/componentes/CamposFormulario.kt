@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -38,6 +40,9 @@ fun CampoTexto(
     habilitado: Boolean = true,
     maxCaracteres: Int? = null,
     lineasMinimas: Int = 1,
+    opcionesTeclado: KeyboardOptions = KeyboardOptions.Default,
+    transformacion: VisualTransformation = VisualTransformation.None,
+    iconoFinal: (@Composable () -> Unit)? = null,
 ) {
     OutlinedTextField(
         value = valor,
@@ -47,7 +52,9 @@ fun CampoTexto(
         enabled = habilitado,
         singleLine = lineasMinimas == 1,
         minLines = lineasMinimas,
-        trailingIcon = if (error != null) {
+        keyboardOptions = opcionesTeclado,
+        visualTransformation = transformacion,
+        trailingIcon = iconoFinal ?: if (error != null) {
             { Icon(Icons.Filled.Warning, contentDescription = null) }
         } else null,
         supportingText = {

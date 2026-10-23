@@ -9,7 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yohanvelasquez.recordatorios.data.preferencias.Preferencias
 import com.yohanvelasquez.recordatorios.data.preferencias.TemaApp
-import com.yohanvelasquez.recordatorios.ui.navegacion.RecordatoriosNavHost
+import com.yohanvelasquez.recordatorios.ui.RaizApp
 import com.yohanvelasquez.recordatorios.ui.theme.RecordatoriosTheme
 
 class MainActivity : ComponentActivity() {
@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
                 TemaApp.CLARO -> false
                 TemaApp.OSCURO -> true
             }
-            RecordatoriosTheme(darkTheme = oscuro) { RecordatoriosNavHost() }
+            RecordatoriosTheme(darkTheme = oscuro) { RaizApp(app.auth) }
         }
     }
 }

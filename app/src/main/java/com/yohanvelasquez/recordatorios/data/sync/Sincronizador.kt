@@ -40,6 +40,8 @@ sealed interface EstadoSincronizacion {
 class Sincronizador(
     private val dao: RecordatorioDao,
     private val remoto: FuenteRemota,
+    /** uid de la cuenta activa; sin cuenta no hay nada que sincronizar. */
+    private val uid: () -> String?,
     scope: CoroutineScope,
     private val reloj: () -> Long = System::currentTimeMillis,
 ) {
@@ -59,9 +61,10 @@ class Sincronizador(
 
     /** Ejecuta una sincronización y devuelve cuando termina. Si ya hay una en curso, espera su turno. */
     suspend fun sincronizar(): EstadoSincronizacion = mutex.withLock {
+        val cuenta = uid() ?: return@withLock EstadoSincronizacion.Inactivo
         _estado.update { EstadoSincronizacion.Sincronizando }
         val resultado = try {
-            enviarPendientes() ?: traerCambios()
+            enviarPendientes(cuenta) ?: traerCambios(cuenta)
         } catch (e: kotlinx.coroutines.CancellationException) {
             _estado.update { EstadoSincronizacion.Inactivo }
             throw e
@@ -71,11 +74,12 @@ class Sincronizador(
     }
 
     /** Devuelve un error si hay que cortar (sin red, timeout, error del servidor), o null si se pudo seguir. */
-    private suspend fun enviarPendientes(): EstadoSincronizacion? {
-        for (fila in dao.obtenerPendientes()) {
+    private suspend fun enviarPendientes(cuenta: String): EstadoSincronizacion? {
+        for (fila in dao.obtenerPendientes(cuenta)) {
             val error = enviar(fila)
             if (error != null) {
-                if (error.recuperable) return EstadoSincronizacion.Fallida(error) // el resto falla igual: se corta
+                // Sin red / timeout / 5xx el resto fallaría igual, y sin sesión válida ningún envío puede funcionar: se corta.
+                if (error.recuperable || error == ErrorRed.SesionInvalida) return EstadoSincronizacion.Fallida(error)
                 dao.marcarError(fila.id, error.mensaje, fila.actualizadoEn) // rechazo definitivo de este registro
             }
         }
@@ -108,7 +112,7 @@ class Sincronizador(
         }
     }
 
-    private suspend fun traerCambios(): EstadoSincronizacion {
+    private suspend fun traerCambios(cuenta: String): EstadoSincronizacion {
         val lista = when (val r = remoto.listar()) {
             is ResultadoRed.Exito -> r.datos
             is ResultadoRed.Fallo -> return EstadoSincronizacion.Fallida(r.error)
@@ -117,15 +121,15 @@ class Sincronizador(
         val idsRemotos = HashSet<String>()
         for (dto in lista) {
             dto.id?.let { idsRemotos += it }
-            val local = dto.clientId.let { dao.buscarPorClientId(it) } ?: dto.id?.let { dao.buscarPorRemoteId(it) }
+            val local = dao.buscarPorClientId(cuenta, dto.clientId) ?: dto.id?.let { dao.buscarPorRemoteId(cuenta, it) }
             // Lo que el usuario cambió y aún no se envió tiene prioridad sobre lo que dice el servicio.
             if (local != null && local.syncEstado != com.yohanvelasquez.recordatorios.model.EstadoSync.SINCRONIZADO) continue
-            val nueva = dto.aEntidad(local, reloj())
+            val nueva = dto.aEntidad(cuenta, local, reloj())
             if (nueva == null) { descartados++; continue }
             if (local == null) dao.insertar(nueva) else dao.actualizar(nueva)
         }
         // Lo que estaba sincronizado y el servicio ya no tiene, se borró desde otro lado.
-        for (fila in dao.obtenerSincronizados()) {
+        for (fila in dao.obtenerSincronizados(cuenta)) {
             if (fila.remoteId != null && fila.remoteId !in idsRemotos) dao.eliminarDefinitivo(fila.id)
         }
         return EstadoSincronizacion.Completada(descartados)

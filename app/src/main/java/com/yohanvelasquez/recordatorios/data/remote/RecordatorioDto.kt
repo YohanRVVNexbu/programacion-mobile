@@ -1,6 +1,9 @@
 package com.yohanvelasquez.recordatorios.data.remote
 
-/** Contrato del servicio remoto. No se usa fuera de la capa de datos. */
+/**
+ * Contrato con el servicio remoto (Cloud Firestore). No se usa fuera de la capa de datos.
+ * [id] es el identificador del documento y coincide con el clientId local: así un reintento sobrescribe el mismo documento.
+ */
 data class RecordatorioDto(
     val id: String? = null,
     val clientId: String,
@@ -12,5 +15,6 @@ data class RecordatorioDto(
     val completadoEn: Long? = null,
     val fechaLimite: Long? = null,
     val ubicacion: String? = null,
+    val creadoEn: Long = 0,
     val actualizadoEn: Long = 0,
 )

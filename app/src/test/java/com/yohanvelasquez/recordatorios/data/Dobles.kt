@@ -17,12 +17,13 @@ class DaoEnMemoria : RecordatorioDao {
     val filas = MutableStateFlow<List<RecordatorioEntity>>(emptyList())
     private var siguiente = 1
 
-    private fun visibles() = filas.map { l ->
-        l.filter { !it.eliminado }.sortedWith(compareByDescending<RecordatorioEntity> { it.creadoEn }.thenByDescending { it.id })
+    private fun visibles(uid: String) = filas.map { l ->
+        l.filter { it.ownerUid == uid && !it.eliminado }
+            .sortedWith(compareByDescending<RecordatorioEntity> { it.creadoEn }.thenByDescending { it.id })
     }
 
     override suspend fun insertar(entidad: RecordatorioEntity): Long {
-        if (filas.value.any { it.clientId == entidad.clientId }) return -1
+        if (filas.value.any { it.ownerUid == entidad.ownerUid && it.clientId == entidad.clientId }) return -1
         val id = if (entidad.id == 0) siguiente++ else entidad.id.also { siguiente = maxOf(siguiente, it + 1) }
         filas.update { it + entidad.copy(id = id) }
         return id.toLong()
@@ -31,20 +32,23 @@ class DaoEnMemoria : RecordatorioDao {
     override suspend fun actualizar(entidad: RecordatorioEntity) = filas.update { l -> l.map { if (it.id == entidad.id) entidad else it } }
     override suspend fun eliminar(entidad: RecordatorioEntity) = eliminarDefinitivo(entidad.id)
     override suspend fun eliminarDefinitivo(id: Int) = filas.update { l -> l.filter { it.id != id } }
+    override suspend fun eliminarTodoDe(uid: String) = filas.update { l -> l.filter { it.ownerUid != uid } }
 
-    override fun observarTodos(): Flow<List<RecordatorioEntity>> = visibles()
-    override fun observarPorEstado(estado: String) = visibles().map { l -> l.filter { it.estado == estado } }
-    override fun observarPorCategoria(categoria: String) = visibles().map { l -> l.filter { it.categoria == categoria } }
-    override fun observarPorPrioridad(prioridad: String) = visibles().map { l -> l.filter { it.prioridad == prioridad } }
-    override fun observarPorId(id: Int) = visibles().map { l -> l.firstOrNull { it.id == id } }
-    override fun observarCantidad() = visibles().map { it.size }
-    override suspend fun obtenerPorId(id: Int) = filas.value.firstOrNull { it.id == id }
+    override fun observarTodos(uid: String): Flow<List<RecordatorioEntity>> = visibles(uid)
+    override fun observarPorEstado(uid: String, estado: String) = visibles(uid).map { l -> l.filter { it.estado == estado } }
+    override fun observarPorCategoria(uid: String, categoria: String) = visibles(uid).map { l -> l.filter { it.categoria == categoria } }
+    override fun observarPorPrioridad(uid: String, prioridad: String) = visibles(uid).map { l -> l.filter { it.prioridad == prioridad } }
+    override fun observarPorId(uid: String, id: Int) = visibles(uid).map { l -> l.firstOrNull { it.id == id } }
+    override fun observarCantidad(uid: String) = visibles(uid).map { it.size }
+    override fun observarSinSincronizar(uid: String) =
+        filas.map { l -> l.count { it.ownerUid == uid && it.syncEstado != EstadoSync.SINCRONIZADO } }
+    override suspend fun obtenerPorId(uid: String, id: Int) = filas.value.firstOrNull { it.ownerUid == uid && it.id == id }
 
-    override suspend fun obtenerPendientes() =
-        filas.value.filter { it.syncEstado == EstadoSync.PENDIENTE }.sortedWith(compareBy({ it.actualizadoEn }, { it.id }))
-    override suspend fun obtenerSincronizados() = filas.value.filter { it.syncEstado == EstadoSync.SINCRONIZADO }
-    override suspend fun buscarPorClientId(clientId: String) = filas.value.firstOrNull { it.clientId == clientId }
-    override suspend fun buscarPorRemoteId(remoteId: String) = filas.value.firstOrNull { it.remoteId == remoteId }
+    override suspend fun obtenerPendientes(uid: String) =
+        filas.value.filter { it.ownerUid == uid && it.syncEstado == EstadoSync.PENDIENTE }.sortedWith(compareBy({ it.actualizadoEn }, { it.id }))
+    override suspend fun obtenerSincronizados(uid: String) = filas.value.filter { it.ownerUid == uid && it.syncEstado == EstadoSync.SINCRONIZADO }
+    override suspend fun buscarPorClientId(uid: String, clientId: String) = filas.value.firstOrNull { it.ownerUid == uid && it.clientId == clientId }
+    override suspend fun buscarPorRemoteId(uid: String, remoteId: String) = filas.value.firstOrNull { it.ownerUid == uid && it.remoteId == remoteId }
 
     override suspend fun marcarTrasEnvio(id: Int, remoteId: String, version: Long) = filas.update { l ->
         l.map {
@@ -63,14 +67,14 @@ class DaoEnMemoria : RecordatorioDao {
         l.map { if (it.id == id) it.copy(eliminado = true, syncEstado = EstadoSync.PENDIENTE, errorSync = null, actualizadoEn = ahora) else it }
     }
 
-    override suspend fun reintentarFallidos() = filas.update { l ->
-        l.map { if (it.syncEstado == EstadoSync.ERROR) it.copy(syncEstado = EstadoSync.PENDIENTE, errorSync = null) else it }
+    override suspend fun reintentarFallidos(uid: String) = filas.update { l ->
+        l.map { if (it.ownerUid == uid && it.syncEstado == EstadoSync.ERROR) it.copy(syncEstado = EstadoSync.PENDIENTE, errorSync = null) else it }
     }
 }
 
 /** Servicio falso que reconoce reenvíos por clientId, como el servicio real. */
 class ServidorFalso : FuenteRemota {
-    enum class Modo { OK, SIN_CONEXION, TIMEOUT, ERROR_500, RECHAZA_400, PIERDE_RESPUESTA_AL_CREAR }
+    enum class Modo { OK, SIN_CONEXION, TIMEOUT, ERROR_500, RECHAZA_400, PIERDE_RESPUESTA_AL_CREAR, SIN_SESION, SIN_PERMISO }
 
     var modo = Modo.OK
     val registros = LinkedHashMap<String, RecordatorioDto>()
@@ -84,6 +88,8 @@ class ServidorFalso : FuenteRemota {
         Modo.SIN_CONEXION -> ErrorRed.SinConexion
         Modo.TIMEOUT -> ErrorRed.Timeout
         Modo.ERROR_500 -> ErrorRed.Servidor(500)
+        Modo.SIN_SESION -> ErrorRed.SesionInvalida
+        Modo.SIN_PERMISO -> ErrorRed.NoAutorizado
         else -> null
     }
 
@@ -121,5 +127,8 @@ class ServidorFalso : FuenteRemota {
     }
 }
 
-fun entidad(clientId: String, titulo: String = "Comprar pan", ahora: Long = 1_000, sync: EstadoSync = EstadoSync.PENDIENTE) =
-    RecordatorioEntity(clientId = clientId, titulo = titulo, categoria = "Hogar", prioridad = "BAJA", creadoEn = ahora, actualizadoEn = ahora, syncEstado = sync)
+const val UID = "uid-ana"
+const val OTRO_UID = "uid-beto"
+
+fun entidad(clientId: String, titulo: String = "Comprar pan", ahora: Long = 1_000, sync: EstadoSync = EstadoSync.PENDIENTE, uid: String = UID) =
+    RecordatorioEntity(ownerUid = uid, clientId = clientId, titulo = titulo, categoria = "Hogar", prioridad = "BAJA", creadoEn = ahora, actualizadoEn = ahora, syncEstado = sync)

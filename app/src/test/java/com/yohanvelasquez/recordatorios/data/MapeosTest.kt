@@ -34,8 +34,9 @@ class MapeosTest {
     fun `de DTO a entidad conserva el id local y queda sincronizada`() {
         val local = entidad("c1").copy(id = 5, creadoEn = 123)
         val dto = RecordatorioDto("9", "c1", "Comprar pan integral", null, "Hogar", "MEDIA", "EN_PROGRESO", actualizadoEn = 8_000)
-        val e = dto.aEntidad(local)!!
+        val e = dto.aEntidad(UID, local)!!
         assertEquals(5, e.id)
+        assertEquals(UID, e.ownerUid)
         assertEquals(123, e.creadoEn)
         assertEquals("9", e.remoteId)
         assertEquals(EstadoSync.SINCRONIZADO, e.syncEstado)
@@ -45,14 +46,14 @@ class MapeosTest {
     @Test
     fun `un DTO invalido no llega a la base`() {
         val ok = RecordatorioDto("9", "c1", "Comprar pan", null, "Hogar", "BAJA", "PENDIENTE")
-        assertNotNull(ok.aEntidad(null))
-        assertNull(ok.copy(id = null).aEntidad(null))
-        assertNull(ok.copy(titulo = "ab").aEntidad(null))
-        assertNull(ok.copy(titulo = "x".repeat(61)).aEntidad(null))
-        assertNull(ok.copy(descripcion = "x".repeat(201)).aEntidad(null))
-        assertNull(ok.copy(categoria = "Otra").aEntidad(null))
-        assertNull(ok.copy(prioridad = "URGENTE").aEntidad(null))
-        assertNull(ok.copy(estado = "QUIZAS").aEntidad(null))
+        assertNotNull(ok.aEntidad(UID, null))
+        assertNull(ok.copy(id = null).aEntidad(UID, null))
+        assertNull(ok.copy(titulo = "ab").aEntidad(UID, null))
+        assertNull(ok.copy(titulo = "x".repeat(61)).aEntidad(UID, null))
+        assertNull(ok.copy(descripcion = "x".repeat(201)).aEntidad(UID, null))
+        assertNull(ok.copy(categoria = "Otra").aEntidad(UID, null))
+        assertNull(ok.copy(prioridad = "URGENTE").aEntidad(UID, null))
+        assertNull(ok.copy(estado = "QUIZAS").aEntidad(UID, null))
     }
 
     @Test

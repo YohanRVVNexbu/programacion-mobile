@@ -5,14 +5,24 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.gms)
 }
 
-// Valores configurables que no se versionan: se leen de local.properties (ver local.properties.example).
-val localProps = Properties().apply {
-    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+// Valores que no se versionan: local.properties (equipo de desarrollo) y keystore.properties (firma).
+fun cargar(nombre: String) = Properties().apply {
+    rootProject.file(nombre).takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
-val apiBaseUrl = localProps.getProperty("recordatorios.apiBaseUrl", "https://api.recordatorios.example/")
-val usarBackendSimulado = localProps.getProperty("recordatorios.usarBackendSimulado", "true")
+val local = cargar("local.properties")
+val claves = cargar("keystore.properties")
+
+// Dirección desde la que el emulador de Android ve la computadora (donde corre el Emulator Suite de Firebase).
+val hostEmuladorFirebase = local.getProperty("recordatorios.emuladorHost", "10.0.2.2")
+
+// Commit exacto del código compilado: permite relacionar el reporte de un tester con una entrega concreta.
+val commit: String = runCatching {
+    ProcessBuilder("git", "rev-parse", "--short", "HEAD").directory(rootDir).start()
+        .inputStream.bufferedReader().readText().trim().ifEmpty { "sin-git" }
+}.getOrDefault("sin-git")
 
 android {
     namespace = "com.yohanvelasquez.recordatorios"
@@ -22,18 +32,53 @@ android {
         applicationId = "com.yohanvelasquez.recordatorios"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "3.0"
+        versionCode = providers.gradleProperty("recordatorios.versionCode").get().toInt()
+        versionName = providers.gradleProperty("recordatorios.versionName").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "GIT_COMMIT", "\"$commit\"")
+    }
 
-        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
-        buildConfigField("boolean", "USAR_BACKEND_SIMULADO", usarBackendSimulado)
+    flavorDimensions += "ambiente"
+    productFlavors {
+        // dev: para desarrollar y probar. Usa el Emulator Suite de Firebase (sin proyecto real, sin datos reales).
+        create("dev") {
+            dimension = "ambiente"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "Recordatorios (dev)")
+            buildConfigField("boolean", "USAR_EMULADOR_FIREBASE", "true")
+            buildConfigField("String", "EMULADOR_HOST", "\"$hostEmuladorFirebase\"")
+            buildConfigField("boolean", "PERMITE_SIMULACION", "true")
+        }
+        // prod: versión para testers. Usa el proyecto real de Firebase (app/src/prod/google-services.json).
+        create("prod") {
+            dimension = "ambiente"
+            resValue("string", "app_name", "Recordatorios")
+            buildConfigField("boolean", "USAR_EMULADOR_FIREBASE", "false")
+            buildConfigField("String", "EMULADOR_HOST", "\"\"")
+            buildConfigField("boolean", "PERMITE_SIMULACION", "false")
+        }
+    }
+
+    signingConfigs {
+        // Las credenciales se leen de keystore.properties (fuera del repositorio); nunca se escriben aquí.
+        create("release") {
+            if (claves.isNotEmpty()) {
+                storeFile = file(claves.getProperty("storeFile"))
+                storePassword = claves.getProperty("storePassword")
+                keyAlias = claves.getProperty("keyAlias")
+                keyPassword = claves.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Sin keystore.properties el release sale sin firmar; el script de entrega lo detecta y se detiene.
+            signingConfig = if (claves.isNotEmpty()) signingConfigs.getByName("release") else null
         }
     }
     compileOptions {
@@ -47,8 +92,12 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        // Las clases de Firebase llaman a APIs de Android al cargarse; en pruebas JVM devuelven valores por defecto.
+        unitTests.isReturnDefaultValues = true
+    }
     sourceSets {
-        // Esquemas de Room versionados para poder revisar cambios de la base.
+        // Esquemas de Room versionados: se usan para probar las migraciones.
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
     }
 }
@@ -75,15 +124,17 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.converter.gson)
-    implementation(libs.okhttp)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.kotlinx.coroutines.test)
 }

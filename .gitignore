@@ -7,3 +7,12 @@
 /app/build
 /captures
 .kotlin
+
+# Firma y configuración de Firebase real (no se versionan)
+keystore.properties
+*.jks
+*.keystore
+app/src/prod/google-services.json
+firebase/node_modules
+firebase/*.log
+/entrega-release

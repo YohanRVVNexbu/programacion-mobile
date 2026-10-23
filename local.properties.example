@@ -1,9 +1,7 @@
 # Copia este archivo como local.properties (no se sube al repositorio) y ajusta los valores.
 sdk.dir=/ruta/al/Android/sdk
 
-# URL base del servicio remoto (debe terminar en "/"). No poner credenciales ni tokens aquí.
-recordatorios.apiBaseUrl=https://api.recordatorios.example/
-
-# true: el servicio se simula dentro de la app (interceptor de OkHttp), sin servidor real.
-# false: se usa la URL de arriba con una conexión real.
-recordatorios.usarBackendSimulado=true
+# Opcional. Dirección del Emulator Suite de Firebase vista desde el dispositivo (solo variante dev).
+#  - Emulador de Android: 10.0.2.2 (valor por defecto)
+#  - Dispositivo físico: "localhost" tras ejecutar:  adb reverse tcp:9099 tcp:9099 && adb reverse tcp:8080 tcp:8080
+#recordatorios.emuladorHost=10.0.2.2
