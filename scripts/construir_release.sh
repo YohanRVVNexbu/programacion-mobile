@@ -51,7 +51,7 @@ grep -q "jar verified" "$DESTINO/$BASE.aab.firma.txt" || { echo "El AAB no tiene
 ( cd "$DESTINO" && shasum -a 256 "$BASE.apk" "$BASE.aab" > "$BASE.SHA256SUMS.txt" )
 
 COMMIT="$(git rev-parse --short HEAD)"
-SUCIO="$(git status --porcelain | grep -v '^??' | wc -l | tr -d ' ')"
+SUCIO="$(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
 {
   echo "Aplicación:          $PAQUETE"
   echo "Versión:             $NOMBRE (versionCode $CODIGO)"

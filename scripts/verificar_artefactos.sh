@@ -10,6 +10,8 @@ for sumas in *.SHA256SUMS.txt; do
   shasum -a 256 -c "$sumas"
 done
 for apk in *.apk; do
-  "$BT/apksigner" verify --print-certs "$apk" | grep -E "Signer #1 certificate SHA-256|^Verifies" || { echo "Firma inválida: $apk"; exit 1; }
+  salida="$("$BT/apksigner" verify --verbose --print-certs "$apk" 2>&1)" || { echo "Firma inválida: $apk"; exit 1; }
+  grep -q '^Verifies' <<< "$salida" || { echo "Firma inválida: $apk"; exit 1; }
+  echo "$apk: firma válida, $(grep -m1 'certificate SHA-256 digest' <<< "$salida" | sed 's/^ *//')"
 done
 echo "Todo coincide."
