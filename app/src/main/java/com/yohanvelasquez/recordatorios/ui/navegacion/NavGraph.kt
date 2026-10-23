@@ -12,14 +12,18 @@ import androidx.navigation.navArgument
 import com.yohanvelasquez.recordatorios.ui.detalle.DetalleRoute
 import com.yohanvelasquez.recordatorios.ui.formulario.FormularioRoute
 import com.yohanvelasquez.recordatorios.ui.lista.ListaRoute
+import com.yohanvelasquez.recordatorios.ui.preferencias.PreferenciasRoute
 
 object Rutas {
     const val LISTA = "lista"
     const val CREAR = "crear"
+    const val PREFERENCIAS = "preferencias"
     const val ARG_ID = "recordatorioId"
     const val DETALLE = "detalle/{$ARG_ID}"
+    const val EDITAR = "editar/{$ARG_ID}"
 
     fun detalle(id: Int) = "detalle/$id"
+    fun editar(id: Int) = "editar/$id"
 }
 
 /** Único lugar que conoce el NavController; las pantallas solo reciben lambdas. */
@@ -28,11 +32,13 @@ fun RecordatoriosNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
+    val argumentoId = listOf(navArgument(Rutas.ARG_ID) { type = NavType.IntType })
     NavHost(navController = navController, startDestination = Rutas.LISTA, modifier = modifier) {
         composable(Rutas.LISTA) {
             ListaRoute(
                 onCrearRecordatorio = { navController.navigate(Rutas.CREAR) },
                 onRecordatorioClick = { id -> navController.navigate(Rutas.detalle(id)) },
+                onPreferencias = { navController.navigate(Rutas.PREFERENCIAS) },
             )
         }
         composable(Rutas.CREAR) {
@@ -41,11 +47,20 @@ fun RecordatoriosNavHost(
                 onVolver = { navController.volver() },
             )
         }
-        composable(
-            route = Rutas.DETALLE,
-            arguments = listOf(navArgument(Rutas.ARG_ID) { type = NavType.IntType }),
-        ) {
-            DetalleRoute(onVolver = { navController.volver() })
+        composable(route = Rutas.EDITAR, arguments = argumentoId) {
+            FormularioRoute(
+                onCancelar = { navController.volver() },
+                onVolver = { navController.volver() },
+            )
+        }
+        composable(route = Rutas.DETALLE, arguments = argumentoId) {
+            DetalleRoute(
+                onVolver = { navController.volver() },
+                onEditar = { id -> navController.navigate(Rutas.editar(id)) },
+            )
+        }
+        composable(Rutas.PREFERENCIAS) {
+            PreferenciasRoute(onVolver = { navController.volver() })
         }
     }
 }

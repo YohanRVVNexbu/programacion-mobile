@@ -43,6 +43,7 @@ import com.yohanvelasquez.recordatorios.model.Categoria
 import com.yohanvelasquez.recordatorios.model.Prioridad
 import com.yohanvelasquez.recordatorios.model.Recordatorio
 import com.yohanvelasquez.recordatorios.ui.componentes.CampoTexto
+import com.yohanvelasquez.recordatorios.ui.componentes.IndicadorCarga
 import com.yohanvelasquez.recordatorios.ui.componentes.SelectorOpciones
 import com.yohanvelasquez.recordatorios.ui.theme.RecordatoriosTheme
 
@@ -83,7 +84,7 @@ fun FormularioScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nuevo recordatorio") },
+                title = { Text(if (uiState.esEdicion) "Editar recordatorio" else "Nuevo recordatorio") },
                 navigationIcon = {
                     IconButton(onClick = onCancelar, enabled = habilitado) {
                         Icon(Icons.Filled.Close, contentDescription = "Cancelar")
@@ -92,6 +93,10 @@ fun FormularioScreen(
             )
         },
     ) { innerPadding ->
+        if (uiState.cargando) {
+            IndicadorCarga(Modifier.padding(innerPadding), mensaje = "Cargando recordatorio…")
+            return@Scaffold
+        }
         Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.TopCenter) {
             Column(
                 modifier = Modifier

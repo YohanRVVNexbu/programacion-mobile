@@ -33,6 +33,28 @@ sealed class EstadoRecordatorio(val etiqueta: String) {
     data class Completado(val fecha: LocalDateTime) : EstadoRecordatorio("Completado")
 }
 
+/** Estado de sincronización de un recordatorio con el servicio remoto. */
+enum class EstadoSync(val etiqueta: String) {
+    SINCRONIZADO("Sincronizado"),
+    PENDIENTE("Pendiente de sincronizar"),
+    ERROR("Error al sincronizar"),
+}
+
+/** Filtro del listado por estado. */
+enum class FiltroEstado(val etiqueta: String) {
+    TODOS("Todos"),
+    PENDIENTE("Pendiente"),
+    EN_PROGRESO("En progreso"),
+    COMPLETADO("Completado");
+
+    fun incluye(estado: EstadoRecordatorio): Boolean = when (this) {
+        TODOS -> true
+        PENDIENTE -> estado is EstadoRecordatorio.Pendiente
+        EN_PROGRESO -> estado is EstadoRecordatorio.EnProgreso
+        COMPLETADO -> estado is EstadoRecordatorio.Completado
+    }
+}
+
 /** Recordatorio inmutable. Los datos opcionales (descripción, fecha límite, ubicación) son nullables. */
 data class Recordatorio(
     val id: Int,
@@ -43,6 +65,9 @@ data class Recordatorio(
     val descripcion: String? = null,
     val fechaLimite: LocalDateTime? = null,
     val ubicacion: String? = null,
+    val creado: LocalDateTime = LocalDateTime.now(),
+    val sincronizacion: EstadoSync = EstadoSync.SINCRONIZADO,
+    val errorSincronizacion: String? = null,
 ) {
     init {
         // Última barrera: nunca puede existir un recordatorio en estado inválido.
@@ -90,3 +115,9 @@ fun validarFormulario(
         prioridad = if (prioridad == null) "Selecciona una prioridad" else null,
     )
 }
+
+/** Lo que recibe el listado: los recordatorios ya filtrados y ordenados, y si existe algún registro en la base. */
+data class ListadoRecordatorios(
+    val items: List<Recordatorio>,
+    val hayRegistros: Boolean,
+)

@@ -3,10 +3,12 @@ package com.yohanvelasquez.recordatorios.data
 import androidx.compose.ui.graphics.Color
 import com.yohanvelasquez.recordatorios.model.Categoria
 import com.yohanvelasquez.recordatorios.model.EstadoRecordatorio
+import com.yohanvelasquez.recordatorios.model.EstadoSync
 import com.yohanvelasquez.recordatorios.model.Prioridad
 import com.yohanvelasquez.recordatorios.model.Recordatorio
 import java.time.LocalDateTime
 
+/** Colores por categoría y datos de ejemplo para las vistas previas de Compose (la app real usa Room). */
 object DatosSimulados {
 
     /** Map: cada categoría asociada a su color de etiqueta. */
@@ -19,17 +21,14 @@ object DatosSimulados {
 
     private val ahora = LocalDateTime.now()
 
-    /** Datos iniciales del repositorio en memoria. */
     val recordatorios: List<Recordatorio> = listOf(
         Recordatorio(1, "Entregar informe trimestral", Categoria.Trabajo, Prioridad.Alta,
-            descripcion = "Enviar al coordinador regional con los indicadores del trimestre.", fechaLimite = ahora.plusDays(2)),
-        Recordatorio(2, "Estudiar Navigation Compose", Categoria.Estudio, Prioridad.Media,
-            estado = EstadoRecordatorio.EnProgreso, descripcion = "Repasar rutas con argumentos y popBackStack."),
+            descripcion = "Enviar al coordinador regional.", sincronizacion = EstadoSync.PENDIENTE),
+        Recordatorio(2, "Estudiar Room y DataStore", Categoria.Estudio, Prioridad.Media,
+            estado = EstadoRecordatorio.EnProgreso),
         Recordatorio(3, "Cita médica de control", Categoria.Salud, Prioridad.Alta,
-            fechaLimite = ahora.plusDays(5), ubicacion = "Centro de salud norte"),
+            sincronizacion = EstadoSync.ERROR, errorSincronizacion = "El servicio rechazó los datos enviados (código 400)."),
         Recordatorio(4, "Pagar servicios del hogar", Categoria.Hogar, Prioridad.Media,
             estado = EstadoRecordatorio.Completado(ahora.minusDays(1))),
-        Recordatorio(5, "Reunión de equipo Android", Categoria.Trabajo, Prioridad.Baja, ubicacion = "Sala 2"),
-        Recordatorio(6, "Comprar frutas y verduras", Categoria.Hogar, Prioridad.Baja),
     )
 }

@@ -55,12 +55,17 @@ fun MensajeVacio(onCrearRecordatorio: () -> Unit, modifier: Modifier = Modifier)
 
 /** Estado de error: mensaje comprensible y opción de reintento. */
 @Composable
-fun MensajeError(mensaje: String, onReintentar: () -> Unit, modifier: Modifier = Modifier) {
+fun MensajeError(
+    mensaje: String,
+    onReintentar: () -> Unit,
+    modifier: Modifier = Modifier,
+    textoAccion: String = "Reintentar",
+) {
     MensajeConAccion(
         icono = Icons.Filled.Warning,
         titulo = "Algo salió mal",
         mensaje = mensaje,
-        textoAccion = "Reintentar",
+        textoAccion = textoAccion,
         iconoAccion = Icons.Filled.Refresh,
         onAccion = onReintentar,
         colorIcono = MaterialTheme.colorScheme.error,

@@ -6,32 +6,23 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.yohanvelasquez.recordatorios.RecordatoriosApp
-import com.yohanvelasquez.recordatorios.data.ControlSimulacion
-import com.yohanvelasquez.recordatorios.data.ModoSimulacion
 import com.yohanvelasquez.recordatorios.data.RecordatorioRepository
-import com.yohanvelasquez.recordatorios.model.EstadoRecordatorio
+import com.yohanvelasquez.recordatorios.data.remote.ControlSimulacion
+import com.yohanvelasquez.recordatorios.data.remote.ModoSimulacion
+import com.yohanvelasquez.recordatorios.data.sync.EstadoSincronizacion
+import com.yohanvelasquez.recordatorios.model.EstadoSync
+import com.yohanvelasquez.recordatorios.model.FiltroEstado
 import com.yohanvelasquez.recordatorios.model.Recordatorio
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-enum class FiltroEstado(val etiqueta: String) {
-    TODOS("Todos"),
-    PENDIENTE("Pendiente"),
-    EN_PROGRESO("En progreso"),
-    COMPLETADO("Completado");
-
-    fun incluye(estado: EstadoRecordatorio): Boolean = when (this) {
-        TODOS -> true
-        PENDIENTE -> estado is EstadoRecordatorio.Pendiente
-        EN_PROGRESO -> estado is EstadoRecordatorio.EnProgreso
-        COMPLETADO -> estado is EstadoRecordatorio.Completado
-    }
-}
 
 /** Estados mutuamente excluyentes del listado: nunca se muestran carga, datos y error a la vez. */
 sealed interface ListaUiState {
@@ -41,8 +32,8 @@ sealed interface ListaUiState {
         val recordatorios: List<Recordatorio>,
         val filtro: FiltroEstado = FiltroEstado.TODOS,
     ) : ListaUiState {
-        val visibles: List<Recordatorio>
-            get() = recordatorios.filter { filtro.incluye(it.estado) }.sortedByDescending { it.prioridad.peso }
+        val pendientes: Int get() = recordatorios.count { it.sincronizacion == EstadoSync.PENDIENTE }
+        val conError: Int get() = recordatorios.count { it.sincronizacion == EstadoSync.ERROR }
     }
     data class Error(val mensaje: String) : ListaUiState
 }
@@ -55,39 +46,48 @@ class ListaViewModel(
     private val _uiState = MutableStateFlow<ListaUiState>(ListaUiState.Cargando)
     val uiState: StateFlow<ListaUiState> = _uiState.asStateFlow()
 
-    private var carga: Job? = null
+    /** Estado de la sincronización con el servicio, aparte del contenido: los datos locales se muestran igual. */
+    val sincronizacion: StateFlow<EstadoSincronizacion> get() = repositorio.estadoSincronizacion
+
+    private val filtro = MutableStateFlow(FiltroEstado.TODOS)
+    private var observacion: Job? = null
 
     init {
-        cargar()
+        observar()
     }
 
-    private fun cargar() {
-        carga?.cancel()
+    /** Observa Room (ya filtrado por estado, sin mostrar completados si así se configuró y ordenado según las preferencias). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observar() {
+        observacion?.cancel()
         _uiState.update { ListaUiState.Cargando }
-        carga = viewModelScope.launch {
-            repositorio.observarRecordatorios()
-                .catch { e -> _uiState.update { ListaUiState.Error(e.message ?: "Error desconocido") } }
-                .collect { lista ->
-                    _uiState.update { actual ->
-                        if (lista.isEmpty()) {
-                            ListaUiState.Vacio
-                        } else {
-                            ListaUiState.ConDatos(lista, (actual as? ListaUiState.ConDatos)?.filtro ?: FiltroEstado.TODOS)
-                        }
+        observacion = viewModelScope.launch {
+            filtro
+                .flatMapLatest { f -> repositorio.observarRecordatorios(f).map { f to it } }
+                .catch { e -> _uiState.update { ListaUiState.Error(e.message ?: "No se pudieron leer los recordatorios guardados.") } }
+                .collect { (f, listado) ->
+                    _uiState.update {
+                        if (!listado.hayRegistros) ListaUiState.Vacio else ListaUiState.ConDatos(listado.items, f)
                     }
                 }
         }
     }
 
-    fun onReintentar() = cargar()
+    fun onReintentar() = observar()
 
-    fun onFiltroSeleccionado(filtro: FiltroEstado) {
-        _uiState.update { actual -> if (actual is ListaUiState.ConDatos) actual.copy(filtro = filtro) else actual }
+    fun onFiltroSeleccionado(nuevo: FiltroEstado) {
+        filtro.update { nuevo }
+    }
+
+    fun onSincronizar() = repositorio.solicitarSincronizacion()
+
+    fun onReintentarSincronizacion() {
+        viewModelScope.launch { repositorio.reintentarFallidos() }
     }
 
     fun onSimulacionSeleccionada(modo: ModoSimulacion) {
         simulacion.modo = modo
-        cargar()
+        repositorio.solicitarSincronizacion()
     }
 
     companion object {

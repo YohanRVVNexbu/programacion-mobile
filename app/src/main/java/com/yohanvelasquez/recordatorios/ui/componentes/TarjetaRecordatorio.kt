@@ -55,6 +55,7 @@ fun TarjetaRecordatorio(
                 EtiquetaCategoria(recordatorio.categoria)
                 Text("Estado: ${recordatorio.estado.etiqueta}", style = MaterialTheme.typography.bodySmall)
             }
+            EtiquetaSync(recordatorio.sincronizacion)
         }
     }
 }
